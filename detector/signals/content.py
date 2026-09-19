@@ -39,8 +39,15 @@ class ContentSignal:
     name = "content"
     features = ("x_dup_rate", "x_shared_oov")
 
-    def __init__(self) -> None:
+    def __init__(self, jaccard: float = JACCARD, min_texts: int = MIN_TEXTS,
+                 oov_min_accounts: int = OOV_MIN_ACCOUNTS) -> None:
+        self.jaccard, self.min_texts, self.oov_min_accounts = jaccard, min_texts, oov_min_accounts
         self.vocab: frozenset[str] = frozenset()
+
+    @property
+    def params(self) -> dict:
+        return {"jaccard": self.jaccard, "min_texts": self.min_texts,
+                "oov_min_accounts": self.oov_min_accounts}
 
     def fit(self, events: Iterable[Event]) -> None:
         counts: Counter[str] = Counter()
@@ -65,7 +72,7 @@ class ContentSignal:
         unique = sorted(occurrences)  # sorted: index order must not depend on input order
         for occ in occurrences.values():
             occ.sort()
-        neighbours = near_duplicates(unique, JACCARD)
+        neighbours = near_duplicates(unique, self.jaccard)
         first = [occurrences[t][0][:2] for t in unique]
 
         seen: Counter[str] = Counter()
@@ -76,7 +83,7 @@ class ContentSignal:
                 seen[acct] += 1
                 dups[acct] += 1 if (k > 0 or derivative) else 0
         for acct, n in seen.items():
-            if n >= MIN_TEXTS:
+            if n >= self.min_texts:
                 out[acct] = dups[acct] / n
 
     def _shared_oov(self, events: list[Event], out: dict[str, float]) -> None:
@@ -87,12 +94,12 @@ class ContentSignal:
             per_text.append((e.account_id, words))
             for w in words:
                 accounts_using[w].add(e.account_id)
-        shared = {w for w, accts in accounts_using.items() if len(accts) >= OOV_MIN_ACCOUNTS}
+        shared = {w for w, accts in accounts_using.items() if len(accts) >= self.oov_min_accounts}
         seen: Counter[str] = Counter()
         hits: Counter[str] = Counter()
         for acct, words in per_text:
             seen[acct] += 1
             hits[acct] += 1 if words & shared else 0
         for acct, n in seen.items():
-            if n >= MIN_TEXTS:
+            if n >= self.min_texts:
                 out[acct] = hits[acct] / n

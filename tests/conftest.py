@@ -21,6 +21,17 @@ def eval_world():
 
 
 @pytest.fixture(scope="session")
+def duel_ref():
+    """A small clean world for face-off tests: big enough to calibrate, fast to build."""
+    return cached_world(301, 250, 6)
+
+
+@pytest.fixture(scope="session")
+def duel_eval():
+    return cached_world(302, 250, 6)
+
+
+@pytest.fixture(scope="session")
 def fitted_signals(ref_world):
     signals = default_signals()
     for s in signals:

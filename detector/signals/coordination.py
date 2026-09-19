@@ -24,6 +24,14 @@ class CoordinationSignal:
     name = "coordination"
     features = ("c_coaction_max", "c_lockstep_degree")
 
+    def __init__(self, window: int = WINDOW, min_target_events: int = MIN_TARGET_EVENTS) -> None:
+        self.window = window
+        self.min_target_events = min_target_events
+
+    @property
+    def params(self) -> dict:
+        return {"window": self.window, "min_target_events": self.min_target_events}
+
     def fit(self, events: Iterable[Event]) -> None:
         pass  # stateless
 
@@ -48,7 +56,7 @@ class CoordinationSignal:
             pairs: set[tuple[str, str]] = set()
             for i, (t, a) in enumerate(acts):
                 j = i + 1
-                while j < len(acts) and acts[j][0] - t <= WINDOW:
+                while j < len(acts) and acts[j][0] - t <= self.window:
                     b = acts[j][1]
                     if a != b:
                         pairs.add((a, b) if a < b else (b, a))
@@ -65,7 +73,7 @@ class CoordinationSignal:
 
         out: Features = {f: {} for f in self.features}
         for acct, n in n_events.items():
-            if n >= MIN_TARGET_EVENTS:
+            if n >= self.min_target_events:
                 out["c_coaction_max"][acct] = float(best.get(acct, 0))
                 out["c_lockstep_degree"][acct] = float(degree.get(acct, 0))
         return out

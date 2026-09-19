@@ -35,6 +35,7 @@ class AttemptOutcome:
     engagement_total: int
     engagement_kept: int
     feedback: dict[str, Any]  # the only thing the agent is told
+    detector_version: str = ""  # set by the face-off, which knows which version scored this
 
 
 class Referee:
@@ -42,7 +43,11 @@ class Referee:
         self.detector = detector
 
     def evaluate(self, attempt: int, commit: CommitResult, attempts_remaining: int) -> AttemptOutcome:
-        verdicts = self.detector.score(commit.events)
+        return self.evaluate_verdicts(attempt, commit, self.detector.score(commit.events), attempts_remaining)
+
+    @staticmethod
+    def evaluate_verdicts(attempt: int, commit: CommitResult, verdicts, attempts_remaining: int) -> AttemptOutcome:
+        """Turn a detector's verdicts into the outcome and the agent's limited feedback."""
         flagged = {a for a, v in verdicts.items() if v.flagged}
         mine = set(commit.farm.accounts)
         suspended = sorted(mine & flagged)

@@ -45,9 +45,12 @@ class RedAgent:
         log: SealedLog | None = None,
         clock: Callable[[], float] = time.monotonic,
         trace_dir: Path | None = None,
+        hooks: Callable[..., None] | None = None,
     ) -> None:
         self.llm, self.world, self.referee, self.budget = llm, world, referee, budget
         self.seed, self.log, self.clock, self.trace_dir = seed, log or SealedLog(), clock, trace_dir
+        # Progress signals only (attempt start, model call count, launch): never content or reasoning.
+        self._hooks = hooks or (lambda *a, **k: None)
 
     def run(self) -> RoundResult:
         result = RoundResult()
@@ -65,6 +68,7 @@ class RedAgent:
     def _attempts(self, messages: list[dict[str, Any]], result: RoundResult, start: float) -> str:
         for attempt in range(1, self.budget.max_attempts + 1):
             sandbox = Sandbox(self.world, self.budget, self.seed, attempt)
+            self._hooks("attempt_start", attempt=attempt)
             toolbox = ToolBox(sandbox, lambda sb, n=attempt: self._launch(sb, n, result))
             calls = nudges = 0
             while not toolbox.launched:
@@ -74,6 +78,7 @@ class RedAgent:
                 response = self.llm.respond(SYSTEM, messages, TOOL_SCHEMAS)
                 calls += 1
                 result.calls += 1
+                self._hooks("agent_call", attempt=attempt, calls=result.calls)
                 result.tokens_used += response.tokens
                 self.log.write("assistant", attempt=attempt, text=response.text, stop=response.stop_reason,
                                calls=[(c.name, c.input) for c in response.tool_calls], tokens=response.tokens)
@@ -115,6 +120,8 @@ class RedAgent:
 
     def _launch(self, sandbox: Sandbox, attempt: int, result: RoundResult) -> dict[str, Any]:
         commit = sandbox.commit()
+        self._hooks("attempt_launched", attempt=attempt, bots=len(sandbox.accounts),
+                    actions=len(commit.executed) - len(sandbox.accounts))
         outcome = self.referee.evaluate(attempt, commit, self.budget.max_attempts - attempt)
         result.outcomes.append(outcome)
         if self.trace_dir is not None:

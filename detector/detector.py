@@ -32,29 +32,59 @@ class Verdict:
     pvalues: dict[str, float] = field(default_factory=dict)  # only features with enough evidence
 
 
+def compute_reference(signal: Signal, events: list[Event]) -> dict[str, np.ndarray]:
+    """Fit `signal` on clean events and return each feature's sorted reference distribution."""
+    signal.fit(events)
+    return {
+        feature: np.sort(np.fromiter(values.values(), dtype=float))
+        for feature, values in signal.compute(events).items()
+    }
+
+
 class Detector:
-    def __init__(self, signals: list[Signal] | None = None, fpr_budget: float = 0.05) -> None:
+    def __init__(
+        self,
+        signals: list[Signal] | None = None,
+        fpr_budget: float = 0.05,
+        disabled: Iterable[str] = (),
+    ) -> None:
         self.signals = signals if signals is not None else default_signals()
         self.fpr_budget = fpr_budget
+        self.disabled = frozenset(disabled)
+        known = {f for s in self.signals for f in s.features}
+        if self.disabled - known:
+            raise ValueError(f"cannot disable unknown feature(s): {sorted(self.disabled - known)}")
+        if not self.features:
+            raise ValueError("at least one feature must stay enabled")
         self._reference: dict[str, np.ndarray] = {}  # feature -> sorted raw values of reference humans
+
+    @classmethod
+    def from_fitted(
+        cls,
+        signals: list[Signal],
+        reference: dict[str, np.ndarray],
+        fpr_budget: float,
+        disabled: Iterable[str] = (),
+    ) -> "Detector":
+        """Assemble a detector from signals that are already fitted, with their reference
+        distributions already computed. This is what makes a live patch quick: only the
+        signals a patch touched need recomputing."""
+        d = cls(signals, fpr_budget, disabled)
+        d._check_reference_size(reference)
+        d._reference = reference
+        return d
 
     @property
     def features(self) -> tuple[str, ...]:
-        return tuple(f for s in self.signals for f in s.features)
+        """The enabled features."""
+        return tuple(f for s in self.signals for f in s.features if f not in self.disabled)
 
     @property
     def alpha(self) -> float:
-        """Each feature's share of the false-positive budget."""
+        """Each enabled feature's share of the false-positive budget."""
         return self.fpr_budget / len(self.features)
 
-    def fit(self, reference_events: Iterable[Event]) -> None:
-        """Calibrate on clean history: same window length and scale as what will be scored."""
-        events = list(reference_events)
-        reference: dict[str, np.ndarray] = {}
-        for signal in self.signals:
-            signal.fit(events)
-            for feature, values in signal.compute(events).items():
-                reference[feature] = np.sort(np.fromiter(values.values(), dtype=float))
+    def _check_reference_size(self, reference: dict[str, np.ndarray]) -> None:
         for feature in self.features:
             n = len(reference.get(feature, ()))
             if n + 1 < 1.0 / self.alpha:
@@ -62,6 +92,16 @@ class Detector:
                     f"reference too small: {feature!r} has {n} accounts, but a per-feature "
                     f"budget of {self.alpha:.4f} needs at least {int(1 / self.alpha) - 1}"
                 )
+
+    def fit(self, reference_events: Iterable[Event]) -> None:
+        """Calibrate on clean history: same window length and scale as what will be scored."""
+        events = list(reference_events)
+        reference: dict[str, np.ndarray] = {}
+        for signal in self.signals:
+            if all(f in self.disabled for f in signal.features):
+                continue  # nothing this signal produces is used
+            reference.update(compute_reference(signal, events))
+        self._check_reference_size(reference)
         self._reference = reference
 
     def p_value(self, feature: str, raw: float) -> float:
@@ -76,7 +116,11 @@ class Detector:
         events = list(events)
         pvalues: dict[str, dict[str, float]] = {}
         for signal in self.signals:
+            if all(f in self.disabled for f in signal.features):
+                continue
             for feature, values in signal.compute(events).items():
+                if feature in self.disabled:
+                    continue
                 for acct, raw in values.items():
                     pvalues.setdefault(acct, {})[feature] = self.p_value(feature, raw)
         out = {}

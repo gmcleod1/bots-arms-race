@@ -27,6 +27,13 @@ class TimingSignal:
     name = "timing"
     features = ("t_regularity", "t_no_sleep")
 
+    def __init__(self, min_events: int = MIN_EVENTS) -> None:
+        self.min_events = min_events
+
+    @property
+    def params(self) -> dict:
+        return {"min_events": self.min_events}
+
     def fit(self, events: Iterable[Event]) -> None:
         pass  # stateless
 
@@ -36,7 +43,7 @@ class TimingSignal:
             times[e.account_id].append(e.sim_ts)
         out: Features = {f: {} for f in self.features}
         for acct, ts in times.items():
-            if len(ts) < MIN_EVENTS:
+            if len(ts) < self.min_events:
                 continue
             arr = np.sort(np.asarray(ts, dtype=np.int64))
             gaps = np.diff(arr).astype(float)
