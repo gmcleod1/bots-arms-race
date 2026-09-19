@@ -1,0 +1,13 @@
+# Secrets, never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Generated worlds and round output (regenerate from seed)
+data/
+rounds/
