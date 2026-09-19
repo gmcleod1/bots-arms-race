@@ -2,7 +2,7 @@
 
 > Outline only. Every `✍️` is yours to write. The prompts and pointers are there to steer you, not to be answered by Claude. Write badly first, tighten later. Two passes: (1) fill it for yourself, (2) rewrite the parts you'd show a hiring manager or put in a video description.
 
-Status: outline, 2026-09-19. Prose sections still yours to fill. Decisions 6.1, 6.2 and 5a are logged in section 12; 6.3 to 6.5 are proposed, not yet accepted.
+Status: outline, 2026-09-19. Prose sections still yours to fill. Decisions 6.1, 6.2 and 5a are logged in section 12. 6.3, 6.4 and 6.5 were built as the plan proposed them (M4 and M5) but are not yet confirmed by you; see the log.
 
 ---
 
@@ -185,7 +185,7 @@ Append-only. Date every entry.
 | 2026-09-19 | 6.2: Sandboxed, seeded simulation with ground-truth labels. Agent never touches a real platform or third-party surface | Tiny self-hosted real platform | ✍️ |
 | 2026-09-19 | 5a: Face-off is simultaneous with live detector patching. Fallback: `--pause-edits` turns a round turn-based | Turn-based rounds (recommended by Claude for fairness and replay) | ✍️ |
 | 2026-09-19 | Scope: full build roadmap, simulator through video. Plan: `C:\Users\netge\.claude\plans\pasted-content-id-0be3-bots-arms-smooth-scone.md` | Decisions-only; decisions + simulator only | ✍️ |
-
 | 2026-09-19 | M4 built on the plan's PROPOSED 6.4 defaults, not separately confirmed by you (you said "do m4"): no check-in inside a round; the agent observes only which of its own accounts were suspended and how much engagement survived; hard budgets (attempts, accounts, actions, tokens, wall-clock, model calls). One deviation: a round is several full-window attempts on a reset platform, with verdicts per attempt, instead of delayed mid-window bans, so the detector always scores the window length it was calibrated on | Mid-window delayed bans (needs rolling-window calibration, M5) | ✍️ |
+| 2026-09-19 | M5 built on the plan's PROPOSED 6.3 and 6.5 (you said "do m5"; not separately confirmed). 6.3: a live scoreboard (`scoreboard/`: feed, dashboard, local server) plus per-attempt episodic results; the stream-overlay app was NOT modified. 6.5: the attacker wins an attempt by keeping at least 10% of what a canonical naive 40-bot farm delivers; the detector wins otherwise but forfeits any attempt in which it flags more than 10% of humans; the round goes to whoever wins more attempts. Also decided in the build: patches are parameter changes only (new detector code is offline work); fair-play mode (`--pause-edits`, `--gate`) is the turn-based fallback; the defender console shows anonymised telemetry with no labels | Rolling windows and mid-window bans (descoped); hot-reloading detector code mid-round | ✍️ |
 
-Still open, with proposed defaults from the plan (accept or change, then log): 6.3 live scoreboard plus episodic reveals; 6.4 as built in M4 (see the row above; confirm or change); 6.5 measurable win condition with thresholds X, R, F set after the M3 baseline, fixed round count.
+Still open, with proposed defaults from the plan (accept or change, then log): 6.3, 6.4 and 6.5 are all built as proposed (see the rows above): confirm or change each. The 10% and 10% thresholds in 6.5 are placeholders to tune after seeing real agent rounds.
