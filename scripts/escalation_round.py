@@ -13,8 +13,9 @@ window (CLAUDE.md, "Known limits" (1)) — the M6 feature this round exists to s
 its real trade-off: it does not fix everything, and turning it on costs a little Bonferroni
 budget from the other features.
 
-While it runs: scoreboard at http://127.0.0.1:<port>/ (OBS Browser Source, 1920x1080).
-Artifacts land in rounds/<id>/. Replay without the model:
+While it runs: scoreboard at http://127.0.0.1:<port>/ (OBS Browser Source, 1920x1080), captioned
+with each attempt's plan name so the arc reads without narration. Artifacts land in rounds/<id>/.
+Replay without the model:
     .venv/Scripts/python scripts/replay_round.py rounds/<id>
 """
 from __future__ import annotations
@@ -74,11 +75,12 @@ def main() -> None:
               + [scripted(("finish", {"reason": "escalation arc complete"}))])
     llm = ScriptedLLM(script)
     budget = Budget(max_attempts=len(PLAN_ARC))
+    attempt_labels = {i: name for i, name in enumerate(PLAN_ARC, start=1)}
 
     round_id = time.strftime("%Y%m%d-%H%M%S") + "-escalation"
     out = args.out / round_id
     fo = FaceOff(llm, spec, out, budget, kept_fraction=0.10, max_human_fpr=0.10, seed=args.seed,
-                 round_id=round_id, worlds=(ref, world))
+                 round_id=round_id, worlds=(ref, world), attempt_labels=attempt_labels)
     holder["fo"] = fo
     fo.start()
     server, _ = serve(out, args.port)

@@ -44,6 +44,8 @@ main { max-width: 1840px; margin: 0 auto; padding: 24px 16px 40px; display: grid
 h1 { font-size: 20px; margin: 0; font-weight: 600; }
 h2 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
 .sub { color: var(--ink-2); font-size: 13px; }
+.caption { color: var(--ink); font-size: 15px; font-weight: 600; margin-top: 2px; }
+.caption:empty { display: none; }
 .muted { color: var(--ink-3); }
 
 header.card { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; justify-content: space-between; }
@@ -105,6 +107,7 @@ body.compact .charts, body.compact .tabular, body.compact .patchcard { display: 
     <div>
       <h1>Bots Arms Race</h1>
       <div class="sub" id="roundline">Waiting for a round to start&hellip;</div>
+      <div class="caption" id="planline"></div>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
       <span class="pill" id="phase"><span class="icon">&#9679;</span><span>Waiting</span></span>
@@ -216,6 +219,7 @@ function render(s) {
   else if (r.status === "running") label = "Running";
   $("phase").innerHTML = `<span class="icon">${icon}</span><span>${esc(label)}</span>`;
   $("detverlabel").textContent = det.version ? `${det.version} · ${det.label}` : "—";
+  $("planline").textContent = (s.current && s.current.label) || "";
 
   $("scoreD").textContent = s.tally.detector; $("scoreA").textContent = s.tally.attacker;
   const lead = s.tally.leader;

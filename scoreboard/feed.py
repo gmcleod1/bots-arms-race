@@ -8,7 +8,9 @@ Two files in the round directory, both plain JSON so anything can read them:
 
 Schema version 1. The feed carries OUTCOMES only: which detector version scored an attempt,
 bots caught, humans wrongly flagged, engagement inflated. It never carries the agent's
-reasoning, tool inputs or log; those stay sealed until the round ends.
+reasoning, tool inputs or log; those stay sealed until the round ends. `attempt_started` may
+also carry an optional `label` (e.g. "15% reaction stealth"): a production caption set by a
+scripted demo script, never by the agent, and absent on a real live-agent round.
 
 For a stream overlay: serve or copy `state.json` and poll it, or tail `events.jsonl`.
 """
@@ -59,7 +61,8 @@ def reduce(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     elif kind == "detector_patch_queued":
         state["detector"]["queued"].append(event["label"])
     elif kind == "attempt_started":
-        state["current"] = {"attempt": event["attempt"], "phase": "agent_planning", "model_calls": 0}
+        state["current"] = {"attempt": event["attempt"], "phase": "agent_planning", "model_calls": 0,
+                            "label": event.get("label")}
     elif kind == "agent_activity":
         if state["current"]:
             state["current"]["model_calls"] = event["calls"]

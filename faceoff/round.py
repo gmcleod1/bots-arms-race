@@ -97,12 +97,14 @@ class FaceOff:
         round_id: str | None = None,
         worlds: tuple[World, World] | None = None,
         clock: Callable[[], float] = time.time,
+        attempt_labels: dict[int, str] | None = None,
     ) -> None:
         self.llm, self.spec, self.out, self.budget = llm, spec, out_dir, budget
         self.config, self.pause_edits, self.seed = config, pause_edits, seed
         self.gate_between_attempts = gate_between_attempts
         self.kept_fraction, self.max_human_fpr = kept_fraction, max_human_fpr
         self.gate_timeout_s = gate_timeout_s  # None waits for the defender indefinitely
+        self.attempt_labels = attempt_labels  # production caption only, never seen by the agent
         self.round_id = round_id or time.strftime("%Y%m%d-%H%M%S")
         self._clock = clock
         self.ref_world, self.eval_world = worlds or spec.build()
@@ -157,7 +159,8 @@ class FaceOff:
     def _hook(self, kind: str, **data: Any) -> None:
         if kind == "attempt_start":
             self.host.freeze()  # fair-play mode: no patches land mid-attempt
-            self.feed.emit("attempt_started", attempt=data["attempt"])
+            label = self.attempt_labels.get(data["attempt"]) if self.attempt_labels else None
+            self.feed.emit("attempt_started", attempt=data["attempt"], label=label)
         elif kind == "agent_call":
             self.feed.emit("agent_activity", attempt=data["attempt"], calls=data["calls"])
         elif kind == "attempt_launched":

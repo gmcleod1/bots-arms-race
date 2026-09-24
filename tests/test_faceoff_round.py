@@ -110,6 +110,18 @@ def test_fair_play_queues_patches_during_an_attempt_and_gates_the_next_one(tmp_p
     assert types.index("waiting_for_defender") < len(types) - 1 - types[::-1].index("attempt_started")
 
 
+def test_attempt_labels_are_a_production_caption_the_agent_never_sees(tmp_path, duel_ref, duel_eval, targets):
+    fo, _ = _round(tmp_path, duel_ref, duel_eval, _attempt(naive(targets)) + [scripted(("finish", {}))],
+                   attempt_labels={1: "naive baseline"})
+    fo.run()
+    state = json.loads((fo.out / "state.json").read_text())
+    assert state["attempts"][0]["attempt"] == 1  # sanity: the attempt actually ran
+    events = read_events(fo.out / "events.jsonl")
+    started = next(e for e in events if e["type"] == "attempt_started")
+    assert started["label"] == "naive baseline"
+    assert "naive baseline" not in (fo.out / "agent-log.jsonl").read_text()  # never sent to the model
+
+
 def test_the_defender_console_sees_telemetry_but_no_labels(tmp_path, duel_ref, duel_eval, targets):
     fo, _ = _round(tmp_path, duel_ref, duel_eval, _attempt(naive(targets)) + [scripted(("finish", {}))])
     fo.run()

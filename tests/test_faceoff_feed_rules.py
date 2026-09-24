@@ -97,6 +97,14 @@ def test_the_phase_follows_the_attempt(tmp_path):
     assert feed.state["current"]["phase"] == "waiting_for_defender"
 
 
+def test_attempt_started_label_is_optional_and_carried_into_current(tmp_path):
+    feed = Feed(tmp_path)
+    feed.emit("attempt_started", attempt=1, label="15% reaction stealth")
+    assert feed.state["current"]["label"] == "15% reaction stealth"
+    feed.emit("attempt_started", attempt=2)  # a real live-agent round: no label passed
+    assert feed.state["current"]["label"] is None
+
+
 def test_concurrent_emitters_never_corrupt_the_log(tmp_path):
     feed = Feed(tmp_path)
     threads = [threading.Thread(target=lambda i=i: [feed.emit("agent_activity", attempt=1, calls=i) for _ in range(25)])
