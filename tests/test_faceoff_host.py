@@ -12,6 +12,14 @@ def reference(duel_ref):
     return duel_ref.events
 
 
+def test_a_live_patch_can_turn_target_overlap_on(reference):
+    host = DetectorHost(reference)
+    assert host.current.alpha == pytest.approx(0.05 / 6)
+    result = host.patch("catch slow lockstep", target_overlap=True)
+    assert result.version.diff == {"target_overlap": [False, True]}
+    assert result.version.alpha == pytest.approx(0.05 / 7)
+
+
 def test_starts_at_v1_and_a_patch_creates_v2_with_a_diff(reference):
     seen = []
     host = DetectorHost(reference, on_event=lambda t, **d: seen.append((t, d)))

@@ -63,6 +63,50 @@ def test_same_targets_hours_apart_is_not_lockstep(bot_world, bot_features):
     assert max(slow) < min(fast)
 
 
+@pytest.fixture(scope="session")
+def overlap_signal():
+    from detector.signals.coordination import CoordinationSignal
+    return CoordinationSignal(overlap=True)
+
+
+def test_target_overlap_is_opt_in():
+    from detector.signals.coordination import CoordinationSignal
+    assert "c_target_overlap" not in CoordinationSignal().features
+    assert "c_target_overlap" not in CoordinationSignal().compute([])
+    assert "c_target_overlap" in CoordinationSignal(overlap=True).features
+
+
+def test_target_overlap_sees_slow_lockstep_that_the_window_features_miss(bot_world, eval_world, overlap_signal):
+    """The same targets hours apart is invisible to a 60 s window but not to who-picks-what."""
+    bots = overlap_signal.compute(bot_world["events"])["c_target_overlap"]
+    humans = overlap_signal.compute(eval_world.events)["c_target_overlap"]
+    slow = _vals({"c": bots}, "c", bot_world["groups"]["slow_lockstep"])
+    fast = _vals({"c": bots}, "c", bot_world["groups"]["lockstep"])
+    assert len(slow) == 12 and min(slow) > 0.95 and min(fast) > 0.95
+    assert min(slow) > 2 * max(humans.values())
+
+
+def test_target_overlap_ignores_accounts_with_no_targets(bot_world, overlap_signal):
+    """Timing-only bots have no targets, so they have no overlap evidence at all."""
+    out = overlap_signal.compute(bot_world["events"])["c_target_overlap"]
+    assert not any(a in out for a in bot_world["groups"]["fixed"])
+
+
+def test_target_overlap_needs_enough_distinct_targets():
+    from detector.signals.coordination import CoordinationSignal
+    from simulator.events import Event
+
+    def like(i, acct, target):
+        return Event(event_id=i, sim_ts=i, account_id=acct, action="like", target_id=target, text=None, ip="x")
+
+    events = [like(i, "a", f"p-{i}") for i in range(12)]          # a: 12 distinct targets
+    events += [like(100 + i, "b", f"p-{i}") for i in range(12)]   # b: the same 12
+    events += [like(200 + i, "c", f"p-{i}") for i in range(3)]    # c: 3 of them, too few to judge
+    events += [like(300 + i, "d", "p-0") for i in range(20)]      # d: 20 events, ONE distinct target
+    out = CoordinationSignal(overlap=True).compute(events)["c_target_overlap"]
+    assert out == {"a": pytest.approx(1.0), "b": pytest.approx(1.0)}
+
+
 # ---- content ------------------------------------------------------------
 
 def test_copy_paste_bots_repost_earlier_text(bot_world, bot_features, human_features):

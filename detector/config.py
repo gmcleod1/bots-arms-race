@@ -4,6 +4,10 @@ A patch is a new `DetectorConfig`. Because the config is plain JSON, every versi
 be recorded and rebuilt exactly, which is what lets a recorded face-off be replayed.
 Patches are limited to these parameters on purpose: the defender tunes the detector,
 they do not write arbitrary code mid-round.
+
+`target_overlap` switches the `c_target_overlap` feature on. It is OFF by default, so the default
+detector is exactly v1 and any record written before the feature existed (no such key) rebuilds
+the detector it was played against. A defender turns it on with a patch: `target_overlap=true`.
 """
 from __future__ import annotations
 
@@ -36,11 +40,12 @@ class DetectorConfig:
     content_min_texts: int = 5
     content_oov_min_accounts: int = 3
     disabled_features: tuple[str, ...] = ()
+    target_overlap: bool = False  # add c_target_overlap: catches same-target lockstep at any spacing
 
     def signals(self) -> list[Signal]:
         return [
             TimingSignal(self.timing_min_events),
-            CoordinationSignal(self.coordination_window, self.coordination_min_target_events),
+            CoordinationSignal(self.coordination_window, self.coordination_min_target_events, self.target_overlap),
             ContentSignal(self.content_jaccard, self.content_min_texts, self.content_oov_min_accounts),
         ]
 
@@ -64,6 +69,8 @@ class DetectorConfig:
                      "content_oov_min_accounts"):
             if not isinstance(getattr(self, name), int) or getattr(self, name) < 1:
                 raise ConfigError(f"{name} must be a positive integer")
+        if not isinstance(self.target_overlap, bool):
+            raise ConfigError("target_overlap must be true or false")
         if not 0.3 <= self.content_jaccard <= 1.0:
             raise ConfigError("content_jaccard must be between 0.3 and 1.0")
         every = {f for s in self.signals() for f in s.features}

@@ -9,6 +9,7 @@ import dataclasses
 import numpy as np
 import pytest
 
+from detector.config import DetectorConfig, build_detector
 from detector.detector import Detector
 from detector.metrics import confusion
 from tests.helpers import cached_world
@@ -111,12 +112,35 @@ def test_precision_and_recall_with_bots_present(bot_world, bot_verdicts):
     assert c.humans_flagged_per_10k <= (BUDGET + 0.025) * 10_000
 
 
-def test_known_gap_same_targets_hours_apart_evades_v1(bot_world, bot_verdicts):
-    """Documented blind spot, not a goal: the 60 s co-action window misses slow lockstep.
-    The red agent is expected to find this. When the detector is patched, retire this test."""
+def test_known_gap_same_targets_hours_apart_evades_the_default_detector(bot_world, bot_verdicts):
+    """Documented blind spot of the DEFAULT detector: the 60 s co-action window misses slow lockstep.
+    The opt-in `target_overlap` feature closes it (next test) at a small cost, so it ships off."""
     accts = bot_world["groups"]["slow_lockstep"]
     caught = [a for a in accts if a in bot_verdicts and bot_verdicts[a].flagged]
     assert len(caught) / len(accts) <= 0.5
+
+
+@pytest.fixture(scope="session")
+def overlap_verdicts(ref_world, bot_world):
+    det = build_detector(DetectorConfig(target_overlap=True), ref_world.events)
+    return det, det.score(bot_world["events"])
+
+
+def test_target_overlap_closes_the_slow_lockstep_gap_and_gets_the_credit(bot_world, overlap_verdicts):
+    """0/12 caught by default, 12/12 with `target_overlap=true` (which ignores time). Every catch is
+    attributed to it: the window features still cannot see these bots."""
+    det, verdicts = overlap_verdicts
+    accts = bot_world["groups"]["slow_lockstep"]
+    assert all(verdicts[a].flagged for a in accts)
+    for a in accts:
+        fired = {f for f, p in verdicts[a].pvalues.items() if p <= det.alpha}
+        assert "c_target_overlap" in fired
+
+
+def test_target_overlap_keeps_the_human_false_positive_rate_near_budget(bot_world, overlap_verdicts):
+    _, verdicts = overlap_verdicts
+    c = confusion(_flagged(verdicts), bot_world["platform"].ground_truth)
+    assert c.fpr <= BUDGET + 0.025 and c.recall >= 0.8
 
 
 def test_accounts_without_enough_evidence_get_no_verdict(bot_world, bot_verdicts):

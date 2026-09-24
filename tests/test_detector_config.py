@@ -4,7 +4,8 @@ A live patch is a new DetectorConfig. These tests pin that configs validate, rou
 through JSON (so every version can be recorded and rebuilt), reuse cached reference work,
 stay honestly calibrated whatever the setting, and that the budget is a real lever with a
 measurable price in humans flagged. They also record a measured NEGATIVE result: widening
-the co-action window does not reliably close the slow-lockstep blind spot.
+the co-action window does not reliably close the slow-lockstep blind spot (the opt-in
+`target_overlap` feature does, see test_detector.py).
 """
 import numpy as np
 import pytest
@@ -37,7 +38,8 @@ def test_configs_validate_and_round_trip_through_json():
     for bad in ({"warp": 1}, {"fpr_budget": 0}, {"fpr_budget": 0.9}, {"coordination_window": 0},
                 {"content_jaccard": 0.1}, {"timing_min_events": 0}, {"disabled_features": ["nope"]},
                 {"disabled_features": ["t_regularity", "t_no_sleep", "c_coaction_max", "c_lockstep_degree",
-                                       "x_dup_rate", "x_shared_oov"]}):
+                                       "x_dup_rate", "x_shared_oov"]},
+                {"target_overlap": "yes"}):
         with pytest.raises(ConfigError):
             base.patched(**bad)
 
@@ -87,7 +89,11 @@ def test_recalibrating_at_any_window_keeps_the_human_false_positive_rate_near_bu
 
 
 def test_raising_the_budget_is_a_real_lever_and_it_costs_humans(duel_ref, duel_eval):
-    """The stated stance in numbers: accept more false positives to catch more bots."""
+    """The stated stance in numbers: accept more false positives to catch more bots.
+
+    Measured on slow lockstep with `target_overlap` off (the default). With it on the budget buys
+    nothing here: 12/12 at 5%. Every other pattern tried (24/7 jitter, partial-overlap bots) also
+    either sits at the p-value floor or deep in the human bulk, so no natural marginal bot is left."""
     bots, events, truth = _slow_lockstep_world(duel_eval)
     cache = {}
     tight = build_detector(DetectorConfig(fpr_budget=0.05), duel_ref.events, cache)
@@ -96,3 +102,23 @@ def test_raising_the_budget_is_a_real_lever_and_it_costs_humans(duel_ref, duel_e
     assert c_loose.tp > c_tight.tp  # more bots caught
     assert c_loose.fp > c_tight.fp  # and more humans flagged: the price
     assert c_loose.fpr <= 0.15 + 0.05
+
+
+def test_target_overlap_is_off_by_default_and_a_patch_turns_it_on(duel_ref, duel_eval):
+    """Off by default: the default detector is exactly v1 (six features, budget/6). A record written
+    before the feature existed has no `target_overlap` key and rebuilds that same detector, which is
+    what keeps rounds recorded against v1 replayable. Turning it on adds one feature and shrinks
+    every feature's share of the budget to budget/7."""
+    old_record = {k: v for k, v in DetectorConfig().to_json().items() if k != "target_overlap"}
+    assert DetectorConfig.from_json(old_record) == DetectorConfig() and not DetectorConfig().target_overlap
+    cache = {}
+    off = build_detector(DetectorConfig(), duel_ref.events, cache)
+    on = build_detector(DetectorConfig().patched(target_overlap=True), duel_ref.events, cache)
+    assert "c_target_overlap" not in off.features and len(off.features) == 6
+    assert "c_target_overlap" in on.features and len(on.features) == 7
+    assert off.alpha == pytest.approx(0.05 / 6) and on.alpha == pytest.approx(0.05 / 7)
+    assert all("c_target_overlap" not in v.pvalues for v in off.score(duel_eval.events).values())
+    assert DetectorConfig().diff(DetectorConfig().patched(target_overlap=True)) == {"target_overlap": [False, True]}
+    timing_off, _, content_off = off.signals
+    timing_on, _, content_on = on.signals
+    assert timing_on is timing_off and content_on is content_off  # only coordination is recomputed
